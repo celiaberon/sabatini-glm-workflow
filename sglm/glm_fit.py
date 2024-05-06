@@ -136,6 +136,11 @@ def shift_predictors(config, df_source, sparsify: Optional[bool] = False):
     non_nans = (df_shifted.isna().sum(axis=1) == 0)&~np.isnan(srs_response)
     df_predictors_fit = df_shifted[non_nans].copy()
     srs_response_fit = srs_response[non_nans].copy()
+    if len(df_predictors_fit) != len(srs_response):
+        print('Warning: Number of rows in shifted data does not match number of rows in input data, check data if this is unexpected.')
+        print(f'Original length: {len(srs_response)}, Mask length: {len(df_predictors_fit)}')
+    else:
+        pass
     if sparsify == True:
         import scipy
         df_predictors_fit_sparse = scipy.sparse.csr_array(df_predictors_fit)
