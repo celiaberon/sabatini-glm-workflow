@@ -7,14 +7,26 @@ Built using sklearn.ElasticNet,Ridge, ElasticNetCV, RidgeCV, and GridSearchCV.
 
 All necessary packages listed in requirements.txt and are pip installable!
 
+## Jupyter Notebooks
 There are two notebooks within this repository: gridSearch and fitGLM.
 * The gridSearch notebook is used to find the best parameters and will help you select the best regression model for your data using GridSearchCV.
-
 * The fitGLM notebook is used to fit the model for known parameters and/or searching through a small list of different parameters. 
 
 Both notebooks are similar and have many of the same elements. They will output a project directory with the necessary files to continue your analysis
 and plot some figures for visualization.
 
+You can also run the pipeline in Google Colab. Please visit our [Google Colab Notebook](https://githubtocolab.com/jbwallace123/sabatini-glm-workflow/blob/main/notebooks/colab_grid_search_tutorial.ipynb) to get started.
+
+
+## Command Line Interface
+You may also run the pipeline using the command line. You must first create a project directory, edit your config.yaml, move your data to the data folder, and then run the following command:
+
+    ```bash
+    cd path/to/repo
+    python ./main/run_pipeline.py path/to/config.yaml
+    ```
+
+Please note that this *does not* include the gridSearch functionality or the additional validation steps that are included in the notebooks.
 
 ## Project Organization
 
@@ -54,9 +66,6 @@ conda create -n sglm python=3.9
 conda activate sglm
 pip install -r requirements.txt
 ```
-
-You can also use the Google Colab to run through this pipeline.
-Please visit our [Google Colab Notebook](https://githubtocolab.com/jbwallace123/sabatini-glm-workflow/blob/main/notebooks/colab_grid_search_tutorial.ipynb) to get started.
 
 ## Troubleshooting:
 

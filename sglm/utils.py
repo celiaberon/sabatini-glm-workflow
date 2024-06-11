@@ -15,7 +15,7 @@ def combine_csvs(project_dir, output_file):
     output_path = os.path.join(dataDir, output_file)
 
     if os.path.exists(output_path):
-        print(f"Output file already exists! Please remove or rename the existing file: {output_path}")
+        print(f"Output file already exists! Please remove or rename the existing file: {output_path}, defaulting to previous version")
         
     else:
         # Open the output file for writing
@@ -164,7 +164,7 @@ def plot_all_events(data, features, n):
     for feature in features:
         plot_events(data, feature, n)
 
-def plot_betas(config, beta, df_predictors_shift, shifted_params, save=False, save_path=None):
+def plot_betas(config, beta, df_predictors_shift, shifted_params, save=False, save_path=None, show_plot: bool = True):
     #locate start and stop indices for each predictor
     predictor_indices = {}
     for key in config['glm_params']['predictors']:
@@ -199,7 +199,10 @@ def plot_betas(config, beta, df_predictors_shift, shifted_params, save=False, sa
             plt.savefig(os.path.join(save_path, f'{key}_betas.png'))
         else:
             pass
-        plt.show()
+        if show_plot:
+            plt.show()
+        else:
+            plt.close()
         
 def align_dataStream (config, data, shifted_params): 
     import tqdm
@@ -283,7 +286,7 @@ def align_reconstructed_dataStream (config, data, data_shifted, shifted_params, 
     return extracted_signal
 
 
-def plot_aligned_dataStream(dataStream, config, save=False, save_path=None, reconstructed=False):
+def plot_aligned_dataStream(dataStream, config, save=False, save_path=None, reconstructed=False, show_plot: bool = True):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -323,9 +326,13 @@ def plot_aligned_dataStream(dataStream, config, save=False, save_path=None, reco
                 raise ValueError("If save is True, save_path must be provided.")
         else:
             pass
-        plt.show()
 
-def plot_actual_v_reconstructed(config, dataStream, recon_dataStream, save=False, save_path=None):
+        if show_plot:
+            plt.show()
+        else:
+            plt.close()
+
+def plot_actual_v_reconstructed(config, dataStream, recon_dataStream, save=False, save_path=None, show_plot: bool = True):
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -338,7 +345,7 @@ def plot_actual_v_reconstructed(config, dataStream, recon_dataStream, save=False
 
         # Pad each waveform to the maximum length
         for waveform in dataStream[predictor]:
-            padded_waveform = np.pad(waveform, (0, max_length - len(waveform)), mode='constant')
+            padded_waveform = np.pad(waveform, (0, max_length - len(waveform)), mode='constant') 
             padded_waveforms.append(padded_waveform)
 
         for recon_waveform in recon_dataStream[predictor]:
@@ -372,5 +379,8 @@ def plot_actual_v_reconstructed(config, dataStream, recon_dataStream, save=False
                 raise ValueError("If save is True, save_path must be provided.")
         else:
             pass
-        plt.show()
+        if show_plot:
+            plt.show()
+        else:
+            plt.close()
 
