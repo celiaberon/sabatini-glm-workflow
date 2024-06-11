@@ -21,10 +21,10 @@ You can also run the pipeline in Google Colab. Please visit our [Google Colab No
 ## Command Line Interface
 You may also run the pipeline using the command line. You must first create a project directory, edit your config.yaml, move your data to the data folder, and then run the following command:
 
-    ```bash
-    cd path/to/repo
-    python ./main/run_pipeline.py path/to/config.yaml
-    ```
+```bash
+cd path/to/repo
+python ./main/run_pipeline.py path/to/config.yaml
+```
 
 Please note that this *does not* include the gridSearch functionality or the additional validation steps that are included in the notebooks.
 
@@ -74,3 +74,6 @@ pip install -r requirements.txt
 * Help! My kernel keeps dying! 
     * This is likely due to the size of your data. You can sparsify your data to help with this issue and also set
     `n_jobs` to -2.
+
+* I have large datasets, is there GPU support?
+    * Currently, this is not supported. However, we are working on adding this feature in the near future!
