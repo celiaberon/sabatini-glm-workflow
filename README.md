@@ -76,5 +76,10 @@ pip install -r requirements.txt
     `n_jobs` to -2.
 
 * I have large datasets, is there GPU support?
-    * Yes! Thanks to [bnpm] (https://github.com/RichieHakim/basic_neural_processing_modules/tree/main), we now have pytorch supported Ridge and Linear Regression models.
-    You can set `pytorch` to `True` in `model, y_pred, score, beta, intercept = glm_fit.fit_glm(config, X_train, X_test, y_train, y_test, cross_validation=False, pytorch=True)` to use the GPU supported models. This method is faster with both the CPU and GPU versions of pytorch. So, if you have larger datasets, this will be a great option for you.
+    * Yes! Thanks to [bnpm](https://github.com/RichieHakim/basic_neural_processing_modules/tree/main), we now have pytorch supported Ridge and Linear Regression models.
+    You can set `pytorch` to `True`. This method is faster with both the CPU and GPU versions of pytorch. So, if you have larger datasets, this will be a great option for you.
+    
+    ```bash
+    model, y_pred, score, beta, intercept = glm_fit.fit_glm(config, X_train, X_test, y_train, y_test, cross_validation=False, pytorch=True)
+    ```
+    
