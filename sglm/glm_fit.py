@@ -7,6 +7,7 @@ import yaml
 import pandas as pd
 import numpy as np
 import pickle
+import bnpm
 from typing import Tuple, Optional 
 
 from sklearn.model_selection import train_test_split
@@ -100,12 +101,15 @@ def shift_array(setup_array: np.ndarray, shift_amt: int, fill_value: Optional[fl
     if shift_amt == 0:
         return setup_array
 
-    blanks = np.ones((abs(shift_amt), setup_array.shape[1])) * fill_value
+    shifted_array = np.empty_like(setup_array)
+    blanks_slice = slice(abs(shift_amt), None)  # Adjust slice based on shift direction
 
     if shift_amt > 0:
-        shifted_array = np.concatenate((blanks, setup_array[:-shift_amt, :]), axis=0)
+        shifted_array[:blanks_slice] = fill_value
+        shifted_array[blanks_slice:] = setup_array[:-shift_amt, :]
     else:
-        shifted_array = np.concatenate((setup_array[-shift_amt:, :], blanks), axis=0)
+        shifted_array[:abs(shift_amt)] = setup_array[-shift_amt:, :]
+        shifted_array[abs(shift_amt):] = fill_value
 
     return shifted_array
 
@@ -148,7 +152,7 @@ def shift_predictors(config, df_source, sparsify: Optional[bool] = False):
     else:
         return srs_response_fit, df_predictors_fit, list_predictors_and_shifts
 
-def fit_glm(config, X_train, X_test, y_train, y_test, cross_validation: Optional[bool] = False):
+def fit_glm(config, X_train, X_test, y_train, y_test, cross_validation: Optional[bool] = False, pytorch: Optional[bool] = False):
     """
     Fit a GLM model using ElasticNet or Ridge from scikit-learn
     Will pass in values from config file
@@ -158,7 +162,15 @@ def fit_glm(config, X_train, X_test, y_train, y_test, cross_validation: Optional
     regression_type = config['glm_params']['regression_type'].lower()
     if regression_type == 'elasticnet':
         print('Fitting ElasticNet model...')
-        if cross_validation == False:
+        if cross_validation == False and pytorch == False:
+            model, y_pred, score, beta, intercept = fit_EN(config, X_train, X_test, y_train, y_test)
+            #report L2 term for ElasticNet
+            l2 = np.sum(beta**2)
+            print(f'L2 term: {l2}')
+            print('Model fit complete')
+            return model, y_pred, score, beta, intercept
+        elif cross_validation == False and pytorch == True:
+            print('PyTorch not supported for ElasticNet, switching to scikit-learn...')
             model, y_pred, score, beta, intercept = fit_EN(config, X_train, X_test, y_train, y_test)
             #report L2 term for ElasticNet
             l2 = np.sum(beta**2)
@@ -174,8 +186,19 @@ def fit_glm(config, X_train, X_test, y_train, y_test, cross_validation: Optional
             return model, y_pred, score, beta, best_params
     elif regression_type == 'ridge':
         print('Fitting Ridge model...')
-        if cross_validation == False:
+        if cross_validation == False and pytorch == False:
             model, y_pred, score, beta, intercept = fit_ridge(config, X_train, X_test, y_train, y_test)
+            #report L2 term for Ridge
+            l2 = np.sum(beta**2)
+            print(f'L2 term: {l2}')
+            print('Model fit complete')
+            return model, y_pred, score, beta, intercept
+        elif cross_validation == False and pytorch == True:
+            model, y_pred, score, beta, intercept = fit_ridge_torch(config, X_train, X_test, y_train, y_test)
+            #convert y_pred, beta, and intercept to numpy arrays
+            y_pred = y_pred.detach().numpy()
+            beta = beta.detach().numpy()
+            intercept = intercept.detach().numpy()
             #report L2 term for Ridge
             l2 = np.sum(beta**2)
             print(f'L2 term: {l2}')
@@ -190,10 +213,18 @@ def fit_glm(config, X_train, X_test, y_train, y_test, cross_validation: Optional
             return model, y_pred, score, beta, best_params
     elif regression_type == 'linearregression':
         print('Fitting Linear Regression model...')
-        model, y_pred, score, beta, intercept = fit_linear_regression(config, X_train, X_test, y_train, y_test)
-        print('Model fit complete')
-        return model, y_pred, score, beta, intercept
-
+        if pytorch == False:
+            model, y_pred, score, beta, intercept = fit_linear_regression(config, X_train, X_test, y_train, y_test)
+            print('Model fit complete')
+            return model, y_pred, score, beta, intercept
+        else:
+            model, y_pred, score, beta, intercept = fit_linear_regression_torch(config, X_train, X_test, y_train, y_test)
+            #convert y_pred, beta, and intercept to numpy arrays
+            y_pred = y_pred.detach().numpy()
+            beta = beta.detach().numpy()
+            intercept = intercept.detach().numpy()
+            print('Model fit complete')
+            return model, y_pred, score, beta, intercept
 
 def fit_EN(config, X_train, X_test, y_train, y_test):
         """
@@ -343,6 +374,39 @@ def fit_tuned_ridge(config, X_train, X_test, y_train, y_test):
         
             return tuned_model, y_pred, score, beta, best_params
 
+def fit_ridge_torch(config, X_train, X_test, y_train, y_test):
+    """
+    Fit Ridge Model from RH BNPM module
+    Will pass in values from config file, will use PyTorch and assumes
+    you have found the best alpha value.
+    """
+    from sglm import utils
+    import bnpm.linear_regression as lr
+    #fetch params
+    params_ridge = config['glm_params']['glm_keyword_args']['ridge']
+    alpha=params_ridge['alpha']
+    fit_intercept=params_ridge['fit_intercept']
+    score_metric = params_ridge['score_metric']
+
+    X_train_tensor = utils.df_to_tensor(X_train)
+    y_train_tensor = utils.df_to_tensor(y_train)
+    X_test_tensor = utils.df_to_tensor(X_test)
+    y_test_tensor = utils.df_to_tensor(y_test)
+    
+    model = lr.Ridge(alpha=alpha, fit_intercept=fit_intercept).fit(X_train_tensor, y_train_tensor)
+    beta = model.coef_
+    intercept = model.intercept_
+    y_pred = model.predict(X_test_tensor)
+
+    if score_metric == 'r2':
+        score = model.score(X_test_tensor, y_test_tensor)
+    elif score_metric == 'mse':
+        from sklearn.metrics import mean_squared_error
+        score = mean_squared_error(y_test_tensor.detach().numpy(), y_pred.detach().numpy())
+    
+    return model, y_pred, score, beta, intercept
+
+
 def fit_linear_regression(config, X_train, X_test, y_train, y_test):
      """
      Fit a linear regression model using LinearRegression from scikit-learn
@@ -370,6 +434,36 @@ def fit_linear_regression(config, X_train, X_test, y_train, y_test):
          score = model.score(y_pred, y_test)
 
      return model, y_pred, score, beta, intercept
+
+def fit_linear_regression_torch(config, X_train, X_test, y_train, y_test):
+    """
+    Fit Linear Regression Model from RH BNPM module
+    Will pass in values from config file, will use PyTorch.
+    """
+    from sglm import utils
+    import bnpm.linear_regression as lr
+    #fetch params
+    params_linear = config['glm_params']['glm_keyword_args']['linearregression']
+    fit_intercept=params_linear['fit_intercept']
+    score_metric = params_linear['score_metric']
+
+    X_train_tensor = utils.df_to_tensor(X_train)
+    y_train_tensor = utils.df_to_tensor(y_train)
+    X_test_tensor = utils.df_to_tensor(X_test)
+    y_test_tensor = utils.df_to_tensor(y_test)
+    
+    model = lr.OLS(fit_intercept=fit_intercept).fit(X_train_tensor, y_train_tensor)
+    beta = model.coef_
+    intercept = model.intercept_
+    y_pred = model.predict(X_test_tensor)
+
+    if score_metric == 'r2':
+        score = model.score(X_test_tensor, y_test_tensor)
+    elif score_metric == 'mse':
+        from sklearn.metrics import mean_squared_error
+        score = mean_squared_error(y_test_tensor.detach().numpy(), y_pred.detach().numpy())
+    
+    return model, y_pred, score, beta, intercept
 
 
 

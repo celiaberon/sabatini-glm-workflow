@@ -8,3 +8,4 @@ scipy
 PyYaml
 seaborn
 tqdm
+bnpm[core]

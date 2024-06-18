@@ -74,6 +74,11 @@ def save_to_yaml(data, filename):
         yaml.dump(data, yaml_file, default_flow_style=False)
     return filename
 
+def df_to_tensor(df):
+    import torch
+    tensor = df.to_numpy()
+    return torch.from_numpy(tensor).float()
+
 def create_config(project_name, project_dir):
     """
     Create a config file with prefilled values
