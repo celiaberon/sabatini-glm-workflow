@@ -7,7 +7,7 @@ import yaml
 import pandas as pd
 import numpy as np
 import pickle
-import bnpm
+import torch
 from typing import Tuple, Optional 
 
 from sklearn.model_selection import train_test_split
@@ -381,19 +381,19 @@ def fit_ridge_torch(config, X_train, X_test, y_train, y_test):
     you have found the best alpha value.
     """
     from sglm import utils
-    import bnpm.linear_regression as lr
+    import torch_linear_regression as tlr
     #fetch params
     params_ridge = config['glm_params']['glm_keyword_args']['ridge']
     alpha=params_ridge['alpha']
     fit_intercept=params_ridge['fit_intercept']
     score_metric = params_ridge['score_metric']
-
+    #convert data to tensors
     X_train_tensor = utils.df_to_tensor(X_train)
     y_train_tensor = utils.df_to_tensor(y_train)
     X_test_tensor = utils.df_to_tensor(X_test)
     y_test_tensor = utils.df_to_tensor(y_test)
     
-    model = lr.Ridge(alpha=alpha, fit_intercept=fit_intercept).fit(X_train_tensor, y_train_tensor)
+    model = tlr.Ridge(alpha=alpha, fit_intercept=fit_intercept).fit(X_train_tensor, y_train_tensor)
     beta = model.coef_
     intercept = model.intercept_
     y_pred = model.predict(X_test_tensor)
@@ -441,18 +441,18 @@ def fit_linear_regression_torch(config, X_train, X_test, y_train, y_test):
     Will pass in values from config file, will use PyTorch.
     """
     from sglm import utils
-    import bnpm.linear_regression as lr
+    import torch_linear_regression as tlr
     #fetch params
     params_linear = config['glm_params']['glm_keyword_args']['linearregression']
     fit_intercept=params_linear['fit_intercept']
     score_metric = params_linear['score_metric']
-
+    #convert data to tensors
     X_train_tensor = utils.df_to_tensor(X_train)
     y_train_tensor = utils.df_to_tensor(y_train)
     X_test_tensor = utils.df_to_tensor(X_test)
     y_test_tensor = utils.df_to_tensor(y_test)
     
-    model = lr.OLS(fit_intercept=fit_intercept).fit(X_train_tensor, y_train_tensor)
+    model = tlr.OLS(fit_intercept=fit_intercept).fit(X_train_tensor, y_train_tensor)
     beta = model.coef_
     intercept = model.intercept_
     y_pred = model.predict(X_test_tensor)

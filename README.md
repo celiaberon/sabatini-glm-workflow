@@ -8,9 +8,9 @@ Built using sklearn.ElasticNet,Ridge, ElasticNetCV, RidgeCV, and GridSearchCV.
 All necessary packages listed in requirements.txt and are pip installable!
 
 ## Jupyter Notebooks
-There are two notebooks within this repository: gridSearch and fitGLM.
-* The gridSearch notebook is used to find the best parameters and will help you select the best regression model for your data using GridSearchCV.
-* The fitGLM notebook is used to fit the model for known parameters and/or searching through a small list of different parameters. 
+There are three notebooks within this repository: gridSearch_CPU, gridSearch_GPU, and fitGLM.
+* The gridSearch notebooks are used to find the best parameters and will help you select the best regression model for your data. They have been optimized for use with sklearn (gridSearch_CPU) and pytorch (gridSearch_GPU). 
+* The fitGLM notebook is used to fit the model for known parameters and/or searching through a small list of different parameters. There is also a validation step included in this notebook. 
 
 Both notebooks are similar and have many of the same elements. They will output a project directory with the necessary files to continue your analysis
 and plot some figures for visualization.
@@ -76,10 +76,18 @@ pip install -r requirements.txt
     `n_jobs` to -2.
 
 * I have large datasets, is there GPU support?
-    * Yes! Thanks to [bnpm](https://github.com/RichieHakim/basic_neural_processing_modules/tree/main), we now have pytorch supported Ridge and Linear Regression models.
+    * Yes! Thanks to [torch_linear_regression](https://github.com/RichieHakim/torch_linear_regression/tree/master), we now have pytorch supported Ridge and Linear Regression models.
     You can set `pytorch` to `True`. This method is faster with both the CPU and GPU versions of pytorch. So, if you have larger datasets, this will be a great option for you.
     
     ```bash
     model, y_pred, score, beta, intercept = glm_fit.fit_glm(config, X_train, X_test, y_train, y_test, cross_validation=False, pytorch=True)
     ```
-    
+
+* I need to fit the same X-data to many different y-data. How can I do this efficiently? 
+    * If using the pytorch supported models, you can use the `prefit` argument in the model iniitalization so you can avoid recomputing the same thing over and over again.
+    This can be done with OLS and Ridge models. 
+    ```bash
+    model = tlr.OLS(prefit_X=X)
+    model.fit(X=X, y=Y) # Pass X again even though it is already fit
+    y_pred = model.predict(X)
+    ```
