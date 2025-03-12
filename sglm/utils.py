@@ -1,9 +1,9 @@
-#utils for data handling
-
-import os
 import csv
-import yaml
+import os
+
 import pandas as pd
+import yaml
+
 
 def combine_csvs(project_dir, output_file):
     """Combine multiple csv files into one csv file.
@@ -45,12 +45,12 @@ def read_data(input_file, index_col = None):
     df = pd.read_csv(input_file, index_col = index_col)
     return df
 
-def create_new_project(project_name, project_dir):
+def create_new_project(project_name, project_dir, **kwargs):
     """Create a new project directory.
     """
+
     project_path = os.path.join(project_dir, project_name)
     
-
     if os.path.exists(project_path):
         print("Project directory already exists!")
         return os.path.join(str(project_path), "config.yaml")
@@ -65,7 +65,7 @@ def create_new_project(project_name, project_dir):
 
     # Create config file
     config_path = os.path.join(project_path)
-    create_config(project_name, config_path)
+    create_config(project_name, config_path, **kwargs)
 
     return project_path, print("Finished creating new project!")
 
@@ -79,16 +79,71 @@ def df_to_tensor(df):
     tensor = df.to_numpy()
     return torch.from_numpy(tensor).float()
 
-def create_config(project_name, project_dir):
+def get_standard_configs():
+    """
+    Returns a dictionary of standard configuration templates for different experiment types.
+    Each template contains standard predictors and shift bounds.
+    """
+    configs = {
+        "reward": {
+            "predictors": [
+                "enl_lick",
+                "cue",
+                "sel_lick",
+                "rew_0_con_lick_1",
+                "rew_1_con_lick_1",
+                "rew_0_con_lick",
+                "rew_1_con_lick",
+                ],
+        },
+        "no_selection": {
+            "predictors": [
+                "enl_lick",
+                "cue",
+                "rew_0_con_lick_1",
+                "rew_1_con_lick_1",
+                "rew_0_con_lick",
+                "rew_1_con_lick",
+                ],
+        },
+        "h2": {
+            "predictors": [
+                'enl_lick',
+                'seq_AA_con_lick', 'seq_AA_cue',
+                'seq_AA_con_lick_1', 'seq_AB_con_lick', 'seq_AB_cue',
+                'seq_AB_con_lick_1', 'seq_Aa_con_lick', 'seq_Aa_cue',
+                'seq_Aa_con_lick_1', 'seq_Ab_con_lick', 'seq_Ab_cue',
+                'seq_Ab_con_lick_1', 'seq_aA_con_lick', 'seq_aA_cue',
+                'seq_aA_con_lick_1', 'seq_aB_con_lick', 'seq_aB_cue',
+                'seq_aB_con_lick_1', 'seq_aa_con_lick', 'seq_aa_cue',
+                'seq_aa_con_lick_1', 'seq_ab_con_lick', 'seq_ab_cue',
+                'seq_ab_con_lick_1', 'sel_lick'],
+        }
+    }
+    return configs
+
+def create_config(project_name, project_dir, template=None, custom_params=None):
     """
     Create a config file with prefilled values
+    
+    Parameters:
+    -----------
+    project_name : str
+        Name of the project
+    project_dir : str
+        Path to the project directory
+    template : str, optional
+        Name of the standard configuration template to use
+    custom_params : dict, optional
+        Custom parameters to override the template
     """
-
     #create outline for config file
     project_info = {
         'project_name': project_name,
         'project_path': project_dir,
     }
+    
+    # Start with default GLM parameters
     glm_params = {
         'regression_type': 'ridge', #options: 'ridge', 'elasticnet'
         'predictors': [
@@ -96,13 +151,13 @@ def create_config(project_name, project_dir):
             'predictor2',
             'predictor3'
         ],
-        'predictors_shift_bounds_default': [-50, 100],
-        'predictors_shift_bounds': {
-            'predictor1': [-2, 2],
-            'predictor2': [-2, 2],
-            'predictor3': [-2, 2],
-        },
-        'response': 'photometryNI',
+        'predictors_shift_bounds_default': [-60, 75],
+        # 'predictors_shift_bounds': {
+        #     'predictor1': [-2, 2],
+        #     'predictor2': [-2, 2],
+        #     'predictor3': [-2, 2],
+        # },
+        'response': 'z_grnL',
         'type': 'Normal',
         'glm_keyword_args': {'elasticnet':{
                                 'alpha': 0.5,
@@ -133,6 +188,23 @@ def create_config(project_name, project_dir):
                                 'n_jobs': -1,
                                 },
     }}
+    
+    # Apply template if specified
+    if template:
+        standard_configs = get_standard_configs()
+        if template in standard_configs:
+            template_config = standard_configs[template]
+            # Update GLM params with template
+            for key, value in template_config.items():
+                glm_params[key] = value
+        else:
+            print(f"Warning: Template '{template}' not found. Using default configuration.")
+    
+    # Apply custom parameters if provided
+    if custom_params:
+        for key, value in custom_params.items():
+            glm_params[key] = value
+    
     train_test_split = {
         'train_size': 0.8,
         'test_size': 0.2,
@@ -168,224 +240,3 @@ def plot_events(df,feature, n):
 def plot_all_events(data, features, n):
     for feature in features:
         plot_events(data, feature, n)
-
-def plot_betas(config, beta, df_predictors_shift, shifted_params, save=False, save_path=None, show_plot: bool = True):
-    #locate start and stop indices for each predictor
-    predictor_indices = {}
-    for key in config['glm_params']['predictors']:
-        predictor_indices[key] = [df_predictors_shift.columns.get_loc(c) for c in df_predictors_shift.columns if key in c]
-
-    # create arrays for each shifted param for the range of each predictor
-    import numpy as np
-    x = []
-    for i in range(len(shifted_params)):
-        x.append(np.arange(shifted_params[i][1][0], shifted_params[i][1][1], 1))
-
-    # find the index of the zero in x
-    zero_index = []
-    for i in range(len(x)):
-        zero_index.append(np.where(x[i] == 0)[0][0])
-
-    #plot the beta coefficients for each predictor using the indices
-    for key, indices in predictor_indices.items():
-        import matplotlib.pyplot as plt
-        #create subplots for each predictor
-        fig, ax = plt.subplots(figsize=(6, 3))
-        ax.plot(beta[indices].T)
-        ax.set_title(key)
-        ax.set_xlabel('Timestamps')
-        ax.set_ylabel('Beta Coefficients')
-
-        # Add vertical line at zero_index
-        for idx in zero_index:
-            ax.axvline(x=idx, color='black', linestyle='--')
-
-        if save:
-            plt.savefig(os.path.join(save_path, f'{key}_betas.png'))
-        else:
-            pass
-        if show_plot:
-            plt.show()
-        else:
-            plt.close()
-        
-def align_dataStream (config, data, shifted_params): 
-    import tqdm
-    response = config['glm_params']['response']
-    signal = data.loc[:, response]
-    shifted_params = dict(shifted_params)
-
-    response_indices = {}
-    shifted_params = dict(shifted_params)
-    for key in config['glm_params']['predictors']:
-        response_indices[key] = data[data[key]==1].index    
-
-    response_indices_shifted = {}
-    for key in response_indices.keys():
-        response_indices_shifted[key] = []
-        for index in response_indices[key]:
-            session_name, trial, timestamp = index  
-            center = int(timestamp)  # Center index
-            start = center + int(shifted_params[key][0])  # Adjusted start index
-            stop = center + int(shifted_params[key][1])  # Adjusted stop index
-            # Preserve multi-index information with shifted indices
-            response_indices_shifted[key].append((session_name, trial, start, stop))
-
-    extracted_signal = {}
-    signal_sorted = signal.sort_index()
-    extracted_signal = {}
-    # Iterate through each key-value pair in response_indices_shifted
-    for key, indices_list in response_indices_shifted.items():
-        extracted_signal[key] = []
-        for index_info in tqdm.tqdm(indices_list):
-            session_name, trial_number, start, stop = index_info
-            selected_data = signal_sorted.loc[(session_name, trial_number, slice(start, stop))]
-            selected_data_filtered = selected_data[(selected_data.index.get_level_values('Timestamp') >= start) & 
-                                                (selected_data.index.get_level_values('Timestamp') <= stop)]
-            
-            # Group the data by the 'Timestamp' level
-            selected_data_filtered = selected_data_filtered.groupby(level='Timestamp').first()
-            extracted_signal[key].append(selected_data_filtered)
-
-    return extracted_signal
-
-def align_reconstructed_dataStream (config, data, data_shifted, shifted_params, model):
-    import tqdm
-    shifted_params = dict(shifted_params)
-    #find all indices where predictor == 1 in dataframe and append to dictionary
-    response_indices = {}
-    for key in config['glm_params']['predictors']:
-        response_indices[key] = data[data[key]==1].index
-
-    response_indices_shifted = {}
-    for key in response_indices.keys():
-        response_indices_shifted[key] = []
-        for index in response_indices[key]:
-            session_name, trial, timestamp = index  
-            center = int(timestamp)  # Center index
-            start = center + int(shifted_params[key][0])  # Adjusted start index
-            stop = center + int(shifted_params[key][1])  # Adjusted stop index
-            # Preserve multi-index information with shifted indices
-            response_indices_shifted[key].append((session_name, trial, start, stop))
-
-    recon = model.predict(data_shifted)
-    #add to data_shifted dataframe
-    data_shifted['recon'] = recon
-    signal = data_shifted['recon']
-    signal_sorted = signal.sort_index()
-
-    extracted_signal = {}
-    # Iterate through each key-value pair in response_indices_shifted
-    for key, indices_list in response_indices_shifted.items():
-        extracted_signal[key] = []
-        for index_info in tqdm.tqdm(indices_list):
-            session_name, trial_number, start, stop = index_info
-            selected_data = signal_sorted.loc[(session_name, trial_number, slice(start, stop))]
-            selected_data_filtered = selected_data[(selected_data.index.get_level_values('Timestamp') >= start) & 
-                                                (selected_data.index.get_level_values('Timestamp') <= stop)]
-            
-            # Group the data by the 'Timestamp' level
-            selected_data_filtered = selected_data_filtered.groupby(level='Timestamp').first()
-            extracted_signal[key].append(selected_data_filtered)
-
-    return extracted_signal
-
-
-def plot_aligned_dataStream(dataStream, config, save=False, save_path=None, reconstructed=False, show_plot: bool = True):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    for predictor in config['glm_params']['predictors']:
-        max_length = max(len(waveform) for waveform in dataStream[predictor])
-
-        # Create an array to store all waveforms with padding
-        padded_waveforms = []
-
-        # Pad each waveform to the maximum length
-        for waveform in dataStream[predictor]:
-            padded_waveform = np.pad(waveform, (0, max_length - len(waveform)), mode='constant')
-            padded_waveforms.append(padded_waveform)
-
-        # Compute the average waveform
-        averaged_waveform = np.mean(padded_waveforms, axis=0)
-        sem = np.std(padded_waveforms, axis=0) / np.sqrt(len(padded_waveforms))
-
-        #Plot the averaged waveform with SEM
-        plt.figure()  # Create a new figure for each predictor
-        plt.plot(averaged_waveform, label='Mean response')
-        plt.fill_between(range(len(averaged_waveform)), averaged_waveform - sem, averaged_waveform + sem, alpha=0.3)
-
-        plt.title('Response with SEM - ' + predictor)
-        plt.xlabel('Timestamps')
-        plt.ylabel('Z-score')
-        plt.legend()
-        
-        # Save if save is True
-        if save:
-            if save_path is not None:
-                if reconstructed:
-                    plt.savefig(save_path + f'/{predictor}_reconstructed.png')
-                else:
-                    plt.savefig(save_path + f'/{predictor}_aligned.png')
-            else:
-                raise ValueError("If save is True, save_path must be provided.")
-        else:
-            pass
-
-        if show_plot:
-            plt.show()
-        else:
-            plt.close()
-
-def plot_actual_v_reconstructed(config, dataStream, recon_dataStream, save=False, save_path=None, show_plot: bool = True):
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    for predictor in config['glm_params']['predictors']:
-        max_length = max(len(waveform) for waveform in dataStream[predictor])
-
-        # Create an array to store all waveforms with padding
-        padded_waveforms = []
-        padded_recon_waveforms = []
-
-        # Pad each waveform to the maximum length
-        for waveform in dataStream[predictor]:
-            padded_waveform = np.pad(waveform, (0, max_length - len(waveform)), mode='constant') 
-            padded_waveforms.append(padded_waveform)
-
-        for recon_waveform in recon_dataStream[predictor]:
-            padded_recon_waveform = np.pad(recon_waveform, (0, max_length - len(recon_waveform)), mode='constant')
-            padded_recon_waveforms.append(padded_recon_waveform)
-
-        # Compute the average waveform
-        averaged_waveform = np.mean(padded_waveforms, axis=0)
-        sem = np.std(padded_waveforms, axis=0) / np.sqrt(len(padded_waveforms))
-
-        averaged_recon_waveform = np.mean(padded_recon_waveforms, axis=0)
-        sem_recon = np.std(padded_recon_waveforms, axis=0) / np.sqrt(len(padded_recon_waveforms))
-
-        #Plot the averaged waveform with SEM
-        plt.figure()
-        plt.plot(averaged_waveform, label='Actual')
-        plt.fill_between(range(len(averaged_waveform)), averaged_waveform - sem, averaged_waveform + sem, alpha=0.3)
-        plt.plot(averaged_recon_waveform, label='Recon')
-        plt.fill_between(range(len(averaged_recon_waveform)), averaged_recon_waveform - sem_recon, averaged_recon_waveform + sem_recon, alpha=0.3)
-
-        plt.title('Actual vs Reconstructed response with SEM - ' + predictor)
-        plt.xlabel('Timestamps')
-        plt.ylabel('Z-score')
-        plt.legend()
-
-        # Save if save is True
-        if save:
-            if save_path is not None:
-                plt.savefig(save_path + f'/{predictor}_actualVrecon.png')
-            else:
-                raise ValueError("If save is True, save_path must be provided.")
-        else:
-            pass
-        if show_plot:
-            plt.show()
-        else:
-            plt.close()
-
