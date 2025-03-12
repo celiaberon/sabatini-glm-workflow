@@ -1,18 +1,15 @@
-#fit GLM functions
-
-
-import os
 import csv
-import yaml
-import pandas as pd
-import numpy as np
+import os
 import pickle
+from typing import Optional, Tuple
+
+import numpy as np
+import pandas as pd
 import torch
-from typing import Tuple, Optional 
-
+import yaml
+from sklearn.linear_model import (ElasticNet, ElasticNetCV, LinearRegression,
+                                  Ridge, RidgeCV)
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import ElasticNet, ElasticNetCV, Ridge, RidgeCV, LinearRegression
-
 
 
 def save_model(model_dict, config):
@@ -79,7 +76,7 @@ def shift_series(series: pd.Series, shift_amt: int, fill_value: Optional[float] 
         return series
 
     if shift_bounding_column:
-        grouped_series = series.groupby(shift_bounding_column)
+        grouped_series = series.groupby(shift_bounding_column, observed=True)
     else:
         grouped_series = series
 
@@ -626,57 +623,3 @@ def leave_one_out_cross_val(config, X_train, X_test, y_train, y_test, plot: Opti
         pass
 
     return model_list
-
-
-def plot_and_save(config, y_pred, y_test, beta, df_predictors_shift):
-    """
-    Plot and save the predictions vs actual values and the model fit results
-    Will be saved in the results folder of the project path
-    """
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    sns.set_style('white')
-    sns.set_context('talk')
-    fig, ax = plt.subplots(figsize=(10, 10))
-    colors = sns.color_palette('deep')
-    ax.scatter(y_pred, y_test,s=50, alpha=0.5, color=colors[0])
-    ax.set_xlabel('Predicted Values')
-    ax.set_ylabel('Actual Values')
-    ax.set_title('Predicted vs Actual Values')
-    ax.grid(True)
-    plt.savefig(config['Project']['project_path'] + '/results/predicted_vs_actual.png')
-    plt.close()
-
-    #plot histogram of residuals
-    fig, ax = plt.subplots(figsize=(10, 10))
-    colors = sns.color_palette('deep')
-    ax.hist(y_test-y_pred, bins=50, color=colors[0])
-    ax.set_xlabel('Residuals')
-    ax.set_ylabel('Count')
-    ax.set_title('Residuals')
-    ax.grid(True)
-    plt.savefig(config['Project']['project_path'] + '/results/residuals.png')
-    plt.close()
-
-    #save model fit results
-    model_fit_results = pd.Series(beta, index=df_predictors_shift.columns, name='coef').unstack(0, )
-    model_fit_results.index = model_fit_results.index.astype(int)
-    model_fit_results = model_fit_results.reindex(config['glm_params']['predictors'], axis=1)
-
-    tup_y_lim = (np.inf, -np.inf)
-    fig, axes = plt.subplots(1, len(model_fit_results.columns), figsize=(5*len(model_fit_results.columns), 5))
-    axes = axes.flatten()
-    for ipredictor, predictor in enumerate(model_fit_results.columns):
-        axes[ipredictor].plot(model_fit_results.sort_index()[predictor])
-        axes[ipredictor].set_title(predictor)
-        axes[ipredictor].grid(True)
-        
-        tup_y_lim = (min(tup_y_lim[0], model_fit_results[predictor].min()-0.1),
-                    max(tup_y_lim[1], model_fit_results[predictor].max()+0.1))
-
-    for ax in axes:
-        ax.set_ylim(tup_y_lim)
-    fig.suptitle('GLM Coefficients Fit Results')
-    plt.savefig(config['Project']['project_path'] + '/results/model_fit.png')
-    plt.close()
-
