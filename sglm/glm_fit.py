@@ -154,315 +154,264 @@ def fit_glm(config, X_train, X_test, y_train, y_test, cross_validation: Optional
     Fit a GLM model using ElasticNet or Ridge from scikit-learn
     Will pass in values from config file
     """
-
-    #fetch regression type
     regression_type = config['glm_params']['regression_type'].lower()
-    if regression_type == 'elasticnet':
-        print('Fitting ElasticNet model...')
-        if cross_validation == False and pytorch == False:
-            model, y_pred, score, beta, intercept = fit_EN(config, X_train, X_test, y_train, y_test)
-            #report L2 term for ElasticNet
-            l2 = np.sum(beta**2)
-            print(f'L2 term: {l2}')
-            print('Model fit complete')
-            return model, y_pred, score, beta, intercept
-        elif cross_validation == False and pytorch == True:
+    print(f'Fitting {regression_type.capitalize()} model...')
+    
+    # Select the appropriate function based on parameters
+    if cross_validation:
+        if regression_type == 'elasticnet':
+            func = fit_tuned_EN
+        elif regression_type == 'ridge':
+            func = fit_tuned_ridge
+        else:
+            raise ValueError(f"Regression type '{regression_type}' not supported for cross-validation")
+        
+        model, y_pred, score, beta, extra_info = func(config, X_train, X_test, y_train, y_test)
+        # extra_info contains best_params for cross-validation functions
+        
+    elif pytorch:
+        if regression_type == 'ridge':
+            func = fit_ridge_torch
+        elif regression_type == 'linearregression':
+            func = fit_linear_regression_torch
+        elif regression_type == 'elasticnet':
             print('PyTorch not supported for ElasticNet, switching to scikit-learn...')
-            model, y_pred, score, beta, intercept = fit_EN(config, X_train, X_test, y_train, y_test)
-            #report L2 term for ElasticNet
-            l2 = np.sum(beta**2)
-            print(f'L2 term: {l2}')
-            print('Model fit complete')
-            return model, y_pred, score, beta, intercept
+            func = fit_EN
         else:
-            model, y_pred, score, beta, best_params = fit_tuned_EN(config, X_train, X_test, y_train, y_test)
-            #report L2 term for ElasticNet
-            l2 = np.sum(beta**2)
-            print(f'L2 term: {l2}')
-            print('Model fit complete')
-            return model, y_pred, score, beta, best_params
-    elif regression_type == 'ridge':
-        print('Fitting Ridge model...')
-        if cross_validation == False and pytorch == False:
-            model, y_pred, score, beta, intercept = fit_ridge(config, X_train, X_test, y_train, y_test)
-            #report L2 term for Ridge
-            l2 = np.sum(beta**2)
-            print(f'L2 term: {l2}')
-            print('Model fit complete')
-            return model, y_pred, score, beta, intercept
-        elif cross_validation == False and pytorch == True:
-            model, y_pred, score, beta, intercept = fit_ridge_torch(config, X_train, X_test, y_train, y_test)
-            #convert y_pred, beta, and intercept to numpy arrays
+            raise ValueError(f"Regression type '{regression_type}' not supported for PyTorch")
+            
+        model, y_pred, score, beta, extra_info = func(config, X_train, X_test, y_train, y_test)
+        # extra_info contains intercept for non-CV functions
+        
+        # Convert PyTorch tensors to numpy arrays if needed
+        if pytorch and regression_type in ['ridge', 'linearregression']:
             y_pred = y_pred.detach().numpy()
             beta = beta.detach().numpy()
-            intercept = intercept.detach().numpy()
-            #report L2 term for Ridge
-            l2 = np.sum(beta**2)
-            print(f'L2 term: {l2}')
-            print('Model fit complete')
-            return model, y_pred, score, beta, intercept
+            extra_info = extra_info.detach().numpy()  # intercept
+    else:
+        if regression_type == 'elasticnet':
+            func = fit_EN
+        elif regression_type == 'ridge':
+            func = fit_ridge
+        elif regression_type == 'linearregression':
+            func = fit_linear_regression
         else:
-            model, y_pred, score, beta, best_params = fit_tuned_ridge(config, X_train, X_test, y_train, y_test)
-            #report L2 term for Ridge
-            l2 = np.sum(beta**2)
-            print(f'L2 term: {l2}')
-            print('Model fit complete')
-            return model, y_pred, score, beta, best_params
-    elif regression_type == 'linearregression':
-        print('Fitting Linear Regression model...')
-        if pytorch == False:
-            model, y_pred, score, beta, intercept = fit_linear_regression(config, X_train, X_test, y_train, y_test)
-            print('Model fit complete')
-            return model, y_pred, score, beta, intercept
-        else:
-            model, y_pred, score, beta, intercept = fit_linear_regression_torch(config, X_train, X_test, y_train, y_test)
-            #convert y_pred, beta, and intercept to numpy arrays
-            y_pred = y_pred.detach().numpy()
-            beta = beta.detach().numpy()
-            intercept = intercept.detach().numpy()
-            print('Model fit complete')
-            return model, y_pred, score, beta, intercept
+            raise ValueError(f"Regression type '{regression_type}' not supported")
+            
+        model, y_pred, score, beta, extra_info = func(config, X_train, X_test, y_train, y_test)
+        # extra_info contains intercept for non-CV functions
+    
+    # Print L2 term for appropriate models
+    if regression_type in ['elasticnet', 'ridge']:
+        l2 = np.sum(beta**2)
+        print(f'L2 term: {l2}')
+    
+    print('Model fit complete')
+    return model, y_pred, score, beta, extra_info
+
+def _extract_params(config, model_type):
+    """Helper function to extract parameters from config based on model type"""
+    return config['glm_params']['glm_keyword_args'][model_type]
+
+def _calculate_score(score_metric, y_pred, y_test, model=None, X_test=None):
+    """Helper function to calculate model score based on specified metric"""
+    if score_metric == 'r2':
+        if model is not None and X_test is not None:
+            return model.score(X_test, y_test)
+        return calc_r2(y_pred, y_test)
+    elif score_metric == 'mse':
+        return calc_mse(y_pred, y_test)
+    elif score_metric == 'avg':
+        if model is not None and X_test is not None:
+            return model.score(X_test, y_test)
+        return calc_r2(y_pred, y_test)
+    else:
+        raise ValueError(f"Score metric '{score_metric}' not supported")
 
 def fit_EN(config, X_train, X_test, y_train, y_test):
-        """
-        Fit a GLM model using ElasticNet from scikit-learn
-        Will pass in values from config file
-        """
-        #fetch parameters
-        params_EN = config['glm_params']['glm_keyword_args']['elasticnet']
-        alpha=params_EN['alpha']
-        fit_intercept=params_EN['fit_intercept']
-        max_iter=params_EN['max_iter']
-        warm_start=params_EN['warm_start']
-        l1_ratio=params_EN['l1_ratio']      
-        selection = params_EN['selection'] 
-        score_metric = params_EN['score_metric']
-        
+    """
+    Fit a GLM model using ElasticNet from scikit-learn
+    """
+    params = _extract_params(config, 'elasticnet')
     
-        model = ElasticNet(alpha=alpha, l1_ratio=l1_ratio, fit_intercept=fit_intercept, 
-                            max_iter=max_iter, copy_X=True, warm_start=warm_start,
-                            selection=selection)
-        
-        model.fit(X_train, y_train)
-        beta = model.coef_
-        sparse_beta = model.sparse_coef_
-        intercept = model.intercept_
-
-        y_pred = model.predict(X_test)
-
-
-        if score_metric == 'r2':
-            score = calc_r2(y_pred, y_test)
-        elif score_metric == 'mse':
-            score = calc_mse(y_pred, y_test)
-        elif score_metric == 'avg':
-            score = model.score(y_pred, y_test)
+    model = ElasticNet(
+        alpha=params['alpha'], 
+        l1_ratio=params['l1_ratio'], 
+        fit_intercept=params['fit_intercept'], 
+        max_iter=params['max_iter'], 
+        copy_X=True, 
+        warm_start=params['warm_start'],
+        selection=params['selection']
+    )
     
-        return model, y_pred, score, beta, intercept
+    model.fit(X_train, y_train)
+    beta = model.coef_
+    intercept = model.intercept_
+    y_pred = model.predict(X_test)
+    score = _calculate_score(params['score_metric'], y_pred, y_test)
+    
+    return model, y_pred, score, beta, intercept
 
 def fit_tuned_EN(config, X_train, X_test, y_train, y_test):
-            """
-            Fit a GLM model using ElasticNetCV from scikit-learn
-            Will pass in values from config file. You will need to
-            provide a list of alphas and l1_ratios to test.
-            """
-            #fetch parameters
-            params_EN = config['glm_params']['glm_keyword_args']['elasticnet']
-            alpha= params_EN['alpha']
-            n_alphas =  params_EN['n_alphas']
-            cv =  params_EN['cv']
-            fit_intercept= params_EN['fit_intercept']
-            max_iter= params_EN['max_iter']
-            l1_ratio= params_EN['l1_ratio'] 
-            n_jobs= params_EN['n_jobs']      
-            score_metric =  params_EN['score_metric']
-            
-            tuned_model = ElasticNetCV(alphas=alpha, l1_ratio=l1_ratio, fit_intercept=fit_intercept, 
-                                max_iter=max_iter, copy_X=True, cv=cv, n_alphas=n_alphas, 
-                                n_jobs=n_jobs)
-            
-            tuned_model.fit(X_train, y_train)
-
-            best_alpha = tuned_model.alpha_
-            best_l1r = tuned_model.l1_ratio_
-            best_params = dict(alpha=best_alpha, l1_ratio=best_l1r)
-
-            beta = tuned_model.coef_
-
-            y_pred = tuned_model.predict(X_test)
+    """
+    Fit a GLM model using ElasticNetCV from scikit-learn
+    """
+    params = _extract_params(config, 'elasticnet')
     
-            if score_metric == 'r2':
-                score = calc_r2(y_pred, y_test)
-            elif score_metric == 'mse':
-                score = calc_mse(y_pred, y_test)
-            elif score_metric == 'avg':
-                score = tuned_model.score(y_pred, y_test)
-        
-            return tuned_model, y_pred, score, beta, best_params
+    tuned_model = ElasticNetCV(
+        alphas=params['alpha'], 
+        l1_ratio=params['l1_ratio'], 
+        fit_intercept=params['fit_intercept'], 
+        max_iter=params['max_iter'], 
+        copy_X=True, 
+        cv=params['cv'], 
+        n_alphas=params['n_alphas'], 
+        n_jobs=params['n_jobs']
+    )
+    
+    tuned_model.fit(X_train, y_train)
+
+    best_params = {
+        'alpha': tuned_model.alpha_,
+        'l1_ratio': tuned_model.l1_ratio_
+    }
+    
+    beta = tuned_model.coef_
+    y_pred = tuned_model.predict(X_test)
+    score = _calculate_score(params['score_metric'], y_pred, y_test)
+    
+    return tuned_model, y_pred, score, beta, best_params
 
 def fit_ridge(config, X_train, X_test, y_train, y_test):
-        """
-        Fit a Ridge model using Ridge from scikit-learn
-        Will pass in values from config file
-        """
-        #fetch params
-        params_ridge = config['glm_params']['glm_keyword_args']['ridge']
-        alpha=params_ridge['alpha']
-        fit_intercept=params_ridge['fit_intercept']
-        max_iter=params_ridge['max_iter']
-        solver=params_ridge['solver']      
-        score_metric = params_ridge['score_metric']
-        
+    """
+    Fit a Ridge model using Ridge from scikit-learn
+    """
+    params = _extract_params(config, 'ridge')
     
-        model = Ridge(alpha=alpha, fit_intercept=fit_intercept, 
-                            max_iter=max_iter, copy_X=True,
-                            solver=solver)
-        
-        model.fit(X_train, y_train)
-        beta = model.coef_
-        intercept = model.intercept_
-
-        y_pred = model.predict(X_test)
-
-
-        if score_metric == 'r2':
-            score = calc_r2(y_pred, y_test)
-        elif score_metric == 'mse':
-            score = calc_mse(y_pred, y_test)
-        elif score_metric == 'avg':
-            score = model.score(y_pred, y_test)
+    model = Ridge(
+        alpha=params['alpha'], 
+        fit_intercept=params['fit_intercept'], 
+        max_iter=params['max_iter'], 
+        copy_X=True,
+        solver=params['solver']
+    )
     
-        return model, y_pred, score, beta, intercept
+    model.fit(X_train, y_train)
+    beta = model.coef_
+    intercept = model.intercept_
+    y_pred = model.predict(X_test)
+    score = _calculate_score(params['score_metric'], y_pred, y_test)
+    
+    return model, y_pred, score, beta, intercept
 
 def fit_tuned_ridge(config, X_train, X_test, y_train, y_test):
-            """
-            Fit a Ridge model using RidgeCV from scikit-learn
-            Will pass in values from config file. You will need to
-            provide a list of alphas to test.
-            """
-            #fetch params
-            params_ridge = config['glm_params']['glm_keyword_args']['ridge']
-            alpha=params_ridge['alpha']
-            cv = params_ridge['cv']
-            fit_intercept=params_ridge['fit_intercept']
-            gcv_mode=params_ridge['gcv_mode']   
-            score_metric = params_ridge['score_metric']
-            
-            tuned_model = RidgeCV(alphas=alpha, fit_intercept=fit_intercept, 
-                                cv=cv, scoring=score_metric, store_cv_values=False,
-                                gcv_mode=gcv_mode, alpha_per_target=False)
-            
-            tuned_model.fit(X_train, y_train)
-
-            best_alpha = tuned_model.alpha_
-            best_score = tuned_model.best_score_
-            best_params = dict(alpha=best_alpha,
-                               best_score=best_score)
-            beta = tuned_model.coef_
-
-            y_pred = tuned_model.predict(X_test)
+    """
+    Fit a Ridge model using RidgeCV from scikit-learn
+    """
+    params = _extract_params(config, 'ridge')
     
-            if score_metric == 'r2':
-                score = calc_r2(y_pred, y_test)
-            elif score_metric == 'mse':
-                score = calc_mse(y_pred, y_test)
-            elif score_metric == 'avg':
-                score = tuned_model.score(y_pred, y_test)
-        
-            return tuned_model, y_pred, score, beta, best_params
+    tuned_model = RidgeCV(
+        alphas=params['alpha'], 
+        fit_intercept=params['fit_intercept'], 
+        cv=params['cv'], 
+        scoring=params['score_metric'], 
+        store_cv_values=False,
+        gcv_mode=params['gcv_mode'], 
+        alpha_per_target=False
+    )
+    
+    tuned_model.fit(X_train, y_train)
+
+    best_params = {
+        'alpha': tuned_model.alpha_,
+        'best_score': tuned_model.best_score_
+    }
+    
+    beta = tuned_model.coef_
+    y_pred = tuned_model.predict(X_test)
+    score = _calculate_score(params['score_metric'], y_pred, y_test)
+    
+    return tuned_model, y_pred, score, beta, best_params
+
+def fit_linear_regression(config, X_train, X_test, y_train, y_test):
+    """
+    Fit a linear regression model using LinearRegression from scikit-learn
+    """
+    params = _extract_params(config, 'linearregression')
+    
+    model = LinearRegression(
+        fit_intercept=params['fit_intercept'], 
+        copy_X=params['copy_X'], 
+        n_jobs=params['n_jobs']
+    )
+    
+    model.fit(X_train, y_train)
+    beta = model.coef_
+    intercept = model.intercept_
+    y_pred = model.predict(X_test)
+    score = _calculate_score(params['score_metric'], y_pred, y_test)
+    
+    return model, y_pred, score, beta, intercept
+
+def _create_tensors(X_train, X_test, y_train, y_test):
+    """Helper function to convert dataframes to tensors for PyTorch models"""
+    from sglm import utils
+    X_train_tensor = utils.df_to_tensor(X_train)
+    y_train_tensor = utils.df_to_tensor(y_train)
+    X_test_tensor = utils.df_to_tensor(X_test)
+    y_test_tensor = utils.df_to_tensor(y_test)
+    return X_train_tensor, X_test_tensor, y_train_tensor, y_test_tensor
 
 def fit_ridge_torch(config, X_train, X_test, y_train, y_test):
     """
-    Fit Ridge Model from RH BNPM module
-    Will pass in values from config file, will use PyTorch and assumes
-    you have found the best alpha value.
+    Fit Ridge Model from RH BNPM module using PyTorch
     """
-    from sglm import utils
     import torch_linear_regression as tlr
-    #fetch params
-    params_ridge = config['glm_params']['glm_keyword_args']['ridge']
-    alpha=params_ridge['alpha']
-    fit_intercept=params_ridge['fit_intercept']
-    score_metric = params_ridge['score_metric']
-    #convert data to tensors
-    X_train_tensor = utils.df_to_tensor(X_train)
-    y_train_tensor = utils.df_to_tensor(y_train)
-    X_test_tensor = utils.df_to_tensor(X_test)
-    y_test_tensor = utils.df_to_tensor(y_test)
     
-    model = tlr.Ridge(alpha=alpha, fit_intercept=fit_intercept).fit(X_train_tensor, y_train_tensor)
+    params = _extract_params(config, 'ridge')
+    X_train_tensor, X_test_tensor, y_train_tensor, y_test_tensor = _create_tensors(X_train, X_test, y_train, y_test)
+    
+    model = tlr.Ridge(
+        alpha=params['alpha'], 
+        fit_intercept=params['fit_intercept']
+    ).fit(X_train_tensor, y_train_tensor)
+    
     beta = model.coef_
     intercept = model.intercept_
     y_pred = model.predict(X_test_tensor)
-
-    if score_metric == 'r2':
+    
+    if params['score_metric'] == 'r2':
         score = model.score(X_test_tensor, y_test_tensor)
-    elif score_metric == 'mse':
+    elif params['score_metric'] == 'mse':
         from sklearn.metrics import mean_squared_error
         score = mean_squared_error(y_test_tensor.detach().numpy(), y_pred.detach().numpy())
     
     return model, y_pred, score, beta, intercept
-
-
-def fit_linear_regression(config, X_train, X_test, y_train, y_test):
-     """
-     Fit a linear regression model using LinearRegression from scikit-learn
-     Will pass in values from config file
-     """
-     #fetch params
-     params_linear = config['glm_params']['glm_keyword_args']['linearregression']
-     fit_intercept=params_linear['fit_intercept']
-     copy_X=params_linear['copy_X']
-     n_jobs=params_linear['n_jobs']
-     score_metric = params_linear['score_metric']
-     
-     model = LinearRegression(fit_intercept=fit_intercept, copy_X=copy_X, n_jobs=n_jobs)
-     model.fit(X_train, y_train)
-     beta = model.coef_
-     intercept = model.intercept_
-
-     y_pred = model.predict(X_test)
-
-     if score_metric == 'r2':
-         score = calc_r2(y_pred, y_test)
-     elif score_metric == 'mse':
-         score = calc_mse(y_pred, y_test)
-     elif score_metric == 'avg':
-         score = model.score(y_pred, y_test)
-
-     return model, y_pred, score, beta, intercept
 
 def fit_linear_regression_torch(config, X_train, X_test, y_train, y_test):
     """
-    Fit Linear Regression Model from RH BNPM module
-    Will pass in values from config file, will use PyTorch.
+    Fit Linear Regression Model from RH BNPM module using PyTorch
     """
-    from sglm import utils
     import torch_linear_regression as tlr
-    #fetch params
-    params_linear = config['glm_params']['glm_keyword_args']['linearregression']
-    fit_intercept=params_linear['fit_intercept']
-    score_metric = params_linear['score_metric']
-    #convert data to tensors
-    X_train_tensor = utils.df_to_tensor(X_train)
-    y_train_tensor = utils.df_to_tensor(y_train)
-    X_test_tensor = utils.df_to_tensor(X_test)
-    y_test_tensor = utils.df_to_tensor(y_test)
     
-    model = tlr.OLS(fit_intercept=fit_intercept).fit(X_train_tensor, y_train_tensor)
+    params = _extract_params(config, 'linearregression')
+    X_train_tensor, X_test_tensor, y_train_tensor, y_test_tensor = _create_tensors(X_train, X_test, y_train, y_test)
+    
+    model = tlr.OLS(
+        fit_intercept=params['fit_intercept']
+    ).fit(X_train_tensor, y_train_tensor)
+    
     beta = model.coef_
     intercept = model.intercept_
     y_pred = model.predict(X_test_tensor)
-
-    if score_metric == 'r2':
+    
+    if params['score_metric'] == 'r2':
         score = model.score(X_test_tensor, y_test_tensor)
-    elif score_metric == 'mse':
+    elif params['score_metric'] == 'mse':
         from sklearn.metrics import mean_squared_error
         score = mean_squared_error(y_test_tensor.detach().numpy(), y_pred.detach().numpy())
     
     return model, y_pred, score, beta, intercept
-
-
 
 def calc_residuals(y_pred, y):
     """
@@ -607,6 +556,7 @@ def leave_one_out_cross_val(config, X_train, X_test, y_train, y_test, plot: Opti
         #plot scores for each model
         import matplotlib.pyplot as plt
         import seaborn as sns
+
         # Create the bar plot
         scores = [model['score'] for model in model_list]
         predictors = [model['predictor_left_out'] for model in model_list]

@@ -5,51 +5,11 @@ import pandas as pd
 import yaml
 
 
-def combine_csvs(project_dir, output_file):
-    """Combine multiple csv files into one csv file.
-        CSVs must have same headers.
-    """
-    # List all CSV files in the directory
-    dataDir = os.path.join(project_dir, "data")
-    csv_files = [file for file in os.listdir(dataDir) if file.endswith(".csv")]
-    output_path = os.path.join(dataDir, output_file)
-
-    if os.path.exists(output_path):
-        print(f"Output file already exists! Please remove or rename the existing file: {output_path}, defaulting to previous version")
-        
-    else:
-        # Open the output file for writing
-        with open(output_path, mode='w', newline='') as combined_csv:
-            writer = csv.writer(combined_csv)
-
-            # Write the header from the first CSV
-            with open(os.path.join(dataDir, csv_files[0]), 'r') as first_csv:
-                reader = csv.reader(first_csv)
-                header = next(reader)
-                writer.writerow(header)
-
-            # Iterate through all CSV files and append their rows to the combined CSV
-            for csv_file in csv_files:
-                with open(os.path.join(dataDir, csv_file), 'r') as input_csv:
-                    reader = csv.reader(input_csv)
-                    next(reader)  # Skip the header
-                    for row in reader:
-                        writer.writerow(row)
-        print(f"Combined {len(csv_files)} CSV files into {output_file}")
-
-    return output_path
-
-def read_data(input_file, index_col = None):
-    """Read in a csv file and return a pandas dataframe.
-    """
-    df = pd.read_csv(input_file, index_col = index_col)
-    return df
-
-def create_new_project(project_name, project_dir, **kwargs):
+def create_new_project(project_name, project_dir, subdir='', **kwargs):
     """Create a new project directory.
     """
 
-    project_path = os.path.join(project_dir, project_name)
+    project_path = os.path.join(project_dir, subdir, project_name)
     
     if os.path.exists(project_path):
         print("Project directory already exists!")
@@ -117,6 +77,19 @@ def get_standard_configs():
                 'seq_aA_con_lick_1', 'seq_aB_con_lick', 'seq_aB_cue',
                 'seq_aB_con_lick_1', 'seq_aa_con_lick', 'seq_aa_cue',
                 'seq_aa_con_lick_1', 'seq_ab_con_lick', 'seq_ab_cue',
+                'seq_ab_con_lick_1', 'sel_lick'],
+        },
+        "h2_first_lick": {
+            "predictors": [
+                'enl_lick',
+                'seq_AA_cue',
+                'seq_AA_con_lick_1', 'seq_AB_cue',
+                'seq_AB_con_lick_1', 'seq_Aa_cue',
+                'seq_Aa_con_lick_1', 'seq_Ab_cue',
+                'seq_Ab_con_lick_1', 'seq_aA_cue',
+                'seq_aA_con_lick_1', 'seq_aB_cue',
+                'seq_aB_con_lick_1', 'seq_aa_cue',
+                'seq_aa_con_lick_1', 'seq_ab_cue',
                 'seq_ab_con_lick_1', 'sel_lick'],
         }
     }
