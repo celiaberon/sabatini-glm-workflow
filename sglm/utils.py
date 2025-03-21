@@ -1,7 +1,5 @@
-import csv
 import os
 
-import pandas as pd
 import yaml
 
 
@@ -16,12 +14,8 @@ def create_new_project(project_name, project_dir, subdir='', **kwargs):
         return os.path.join(str(project_path), "config.yaml")
     
     os.makedirs(project_path, exist_ok=True)
-    data_path = os.path.join(project_path, "data")
     results_path = os.path.join(project_path, "results")
-    model_path = os.path.join(project_path, "models")
-
-    for p in [data_path, results_path, model_path]:
-        os.makedirs(p, exist_ok=True)
+    os.makedirs(results_path, exist_ok=True)
 
     # Create config file
     config_path = os.path.join(project_path)
