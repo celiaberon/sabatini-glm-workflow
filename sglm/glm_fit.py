@@ -83,58 +83,31 @@ def shift_series(series: pd.Series, shift_amt: int, fill_value: Optional[float] 
     shifted_series = grouped_series.shift(periods=shift_amt, fill_value=fill_value)
     return shifted_series
 
-def shift_array(setup_array: np.ndarray, shift_amt: int, fill_value: Optional[float] = np.nan) -> np.ndarray:
-    """
-    Shift a numpy array up or down by a specified amount.
-
-    Args:
-        setup_array (np.ndarray): Array to be shifted up or down.
-        shift_amt (int): Amount to shift data (positive for shift down, negative for shift up).
-        fill_value (Optional[float]): Value to be left in place of shifted data (default: np.nan).
-
-    Returns:
-        np.ndarray: Post-shift version of the array.
-    """
-    if shift_amt == 0:
-        return setup_array
-
-    shifted_array = np.empty_like(setup_array)
-    blanks_slice = slice(abs(shift_amt), None)  # Adjust slice based on shift direction
-
-    if shift_amt > 0:
-        shifted_array[:blanks_slice] = fill_value
-        shifted_array[blanks_slice:] = setup_array[:-shift_amt, :]
-    else:
-        shifted_array[:abs(shift_amt)] = setup_array[-shift_amt:, :]
-        shifted_array[abs(shift_amt):] = fill_value
-
-    return shifted_array
 
 def shift_predictors(config, df_source, sparsify: Optional[bool] = False):
     """
     Shift predictors by the amounts specified in config.yaml
     """
 
+    df_source_ = df_source.copy()
     predictors = config['glm_params']['predictors']
-    shift_bounds = config['glm_params']['predictors_shift_bounds'] if 'predictors_shift_bounds' in config['glm_params'] else {}
-    shift_bounds_default = config['glm_params']['predictors_shift_bounds_default']
+    shift_bounds = config['glm_params'].get('predictors_shift_bounds', {})
+    shift_bounds_default = config['glm_params'].get('predictors_shift_bounds_default', {})
     list_predictors_and_shifts = [(predictor, shift_bounds.get(
         predictor, shift_bounds_default)) for predictor in predictors]
 
-    
     list_predictors_shifted = []
     for predictor, predictor_shift_bounds in list_predictors_and_shifts:
         predictor_shifted = shift_series_range(
-            df_source[predictor],
+            df_source_[predictor],
             predictor_shift_bounds,
             shift_bounding_column=['SessionName']
         )
         list_predictors_shifted.append(predictor_shifted)
     
-
     df_shifted = pd.concat(list_predictors_shifted, axis=1)
-    srs_response = df_source[config['glm_params']['response']]
-    non_nans = (df_shifted.isna().sum(axis=1) == 0)&~np.isnan(srs_response)
+    srs_response = df_source_[config['glm_params']['response']]
+    non_nans = (df_shifted.isna().sum(axis=1) == 0) & ~np.isnan(srs_response)
     df_predictors_fit = df_shifted[non_nans].copy()
     srs_response_fit = srs_response[non_nans].copy()
     if len(df_predictors_fit) != len(srs_response):
@@ -144,9 +117,15 @@ def shift_predictors(config, df_source, sparsify: Optional[bool] = False):
         pass
     if sparsify == True:
         import scipy
+
+        df_predictors_fit = df_predictors_fit.astype(float)
         df_predictors_fit_sparse = scipy.sparse.csr_array(df_predictors_fit)
         return srs_response_fit, df_predictors_fit_sparse, list_predictors_and_shifts
     else:
+        import psutil
+        mem = psutil.virtual_memory()
+        mem_utilization = mem.percent / 100.0
+        print(f'Memory utilization: {mem_utilization}')
         return srs_response_fit, df_predictors_fit, list_predictors_and_shifts
 
 def fit_glm(config, X_train, X_test, y_train, y_test, cross_validation: Optional[bool] = False, pytorch: Optional[bool] = False):
