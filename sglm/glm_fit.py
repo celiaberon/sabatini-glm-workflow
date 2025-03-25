@@ -119,14 +119,11 @@ def shift_predictors(config, df_source, sparsify: Optional[bool] = False):
         import scipy
 
         df_predictors_fit = df_predictors_fit.astype(float)
+        column_headers = df_predictors_fit.columns
         df_predictors_fit_sparse = scipy.sparse.csr_array(df_predictors_fit)
-        return srs_response_fit, df_predictors_fit_sparse, list_predictors_and_shifts
+        return srs_response_fit, df_predictors_fit_sparse, list_predictors_and_shifts, column_headers
     else:
-        import psutil
-        mem = psutil.virtual_memory()
-        mem_utilization = mem.percent / 100.0
-        print(f'Memory utilization: {mem_utilization}')
-        return srs_response_fit, df_predictors_fit, list_predictors_and_shifts
+        return srs_response_fit, df_predictors_fit, list_predictors_and_shifts, None
 
 def fit_glm(config, X_train, X_test, y_train, y_test, cross_validation: Optional[bool] = False, pytorch: Optional[bool] = False):
     """
