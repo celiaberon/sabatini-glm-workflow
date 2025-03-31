@@ -85,7 +85,19 @@ def get_standard_configs():
                 'seq_aB_con_lick_1', 'seq_aa_cue',
                 'seq_aa_con_lick_1', 'seq_ab_cue',
                 'seq_ab_con_lick_1', 'sel_lick'],
-        }
+        },
+        "reward_history": {
+            "predictors": [
+                "enl_lick",
+                "pre_0_cue",
+                "pre_1_cue",
+                "sel_lick",
+                "rew_0_con_lick_1",
+                "rew_1_con_lick_1",
+                "rew_0_con_lick",
+                "rew_1_con_lick",
+                ],
+        },
     }
     return configs
 
