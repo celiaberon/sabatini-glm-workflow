@@ -98,6 +98,28 @@ def get_standard_configs():
                 "rew_1_con_lick",
                 ],
         },
+        "sel_reward_history": {
+            "predictors": [
+                "enl_lick",
+                "pre_0_cue", 'pre_0_sel_lick',
+                "pre_1_cue", 'pre_1_sel_lick',
+                "rew_0_con_lick_1", "rew_1_con_lick_1",
+                "rew_0_con_lick", "rew_1_con_lick",
+                ],
+        },
+        "sel_h2_first_lick": {
+            "predictors": [
+                'enl_lick',
+                'seq_AA_cue', 'seq_AA_sel_lick',
+                'seq_AA_con_lick_1', 'seq_AB_cue', 'seq_AB_sel_lick',
+                'seq_AB_con_lick_1', 'seq_Aa_cue', 'seq_Aa_sel_lick',
+                'seq_Aa_con_lick_1', 'seq_Ab_cue', 'seq_Ab_sel_lick',
+                'seq_Ab_con_lick_1', 'seq_aA_cue', 'seq_aA_sel_lick',
+                'seq_aA_con_lick_1', 'seq_aB_cue', 'seq_aB_sel_lick',
+                'seq_aB_con_lick_1', 'seq_aa_cue', 'seq_aa_sel_lick',
+                'seq_aa_con_lick_1', 'seq_ab_cue', 'seq_ab_sel_lick',
+                'seq_ab_con_lick_1'],
+        },
     }
     return configs
 
